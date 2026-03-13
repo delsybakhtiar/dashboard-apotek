@@ -1,111 +1,179 @@
-function Card({
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { getProducts, getSales, Product, Sale } from "@/lib/store";
+
+function formatRupiah(n: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function isToday(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  return d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+}
+
+function daysFromNow(dateStr: string) {
+  const target = new Date(dateStr + "T00:00:00");
+  const now = new Date();
+  return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function StatCard({
   title,
   value,
   hint,
 }: {
   title: string;
   value: string;
-  hint?: string;
+  hint: string;
 }) {
   return (
-    <div className="rounded-3xl border border-black/10 bg-white p-5 shadow-sm">
-      <div className="text-sm text-gray-500">{title}</div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-gray-900">
-        {value}
-      </div>
-      {hint ? <div className="mt-1 text-xs text-gray-500">{hint}</div> : null}
+    <div className="shell-card rounded-[26px] p-5">
+      <div className="text-sm text-soft">{title}</div>
+      <div className="mt-3 text-3xl font-semibold tracking-tight text-white">{value}</div>
+      <div className="mt-2 text-sm text-soft">{hint}</div>
     </div>
   );
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-2xl border border-black/10 bg-white px-3 py-1 text-xs font-medium text-gray-700">
-      {children}
-    </span>
-  );
-}
-
-function Row({ left, right }: { left: string; right: string }) {
-  return (
-    <li className="flex items-center justify-between gap-3">
-      <span className="text-sm text-gray-800">{left}</span>
-      <span className="text-xs font-medium rounded-xl bg-gray-100 px-2.5 py-1 text-gray-700">
-        {right}
-      </span>
-    </li>
-  );
-}
-
 export default function DashboardPage() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+
+  useEffect(() => {
+    const refresh = () => {
+      setProducts(getProducts());
+      setSales(getSales());
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, []);
+
+  const summary = useMemo(() => {
+    const todaySales = sales.filter((s) => isToday(s.tanggalISO));
+    const omzetHariIni = todaySales.reduce((a, b) => a + Number(b.total || 0), 0);
+    const transaksiHariIni = todaySales.length;
+
+    const stokKritis = products.filter((p) => {
+      const stok = Number(p.stok ?? 0);
+      const min = Number(p.stokMinimum ?? 0);
+      return min > 0 && stok <= min;
+    }).length;
+
+    const expiryDekat = products.filter((p) => {
+      if (!p.expiryDate) return false;
+      const d = daysFromNow(p.expiryDate);
+      return d >= 0 && d <= 30;
+    }).length;
+
+    return { omzetHariIni, transaksiHariIni, stokKritis, expiryDekat };
+  }, [products, sales]);
+
+  const latestSales = sales.slice(0, 5);
+  const lowStock = products
+    .filter((p) => Number(p.stok ?? 0) <= Number(p.stokMinimum ?? 0) && Number(p.stokMinimum ?? 0) > 0)
+    .slice(0, 5);
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
+          <h1 className="text-3xl md:text-4xl font-semibold tracking-tight text-white">
             Beranda
           </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Ringkasan operasional apotek (data mock dulu).
+          <p className="mt-2 text-soft">
+            Ringkasan otomatis dari data manual yang sudah kamu input.
           </p>
         </div>
-        <Badge>MOCK</Badge>
+        <div className="badge-green">
+          <span className="h-2 w-2 rounded-full bg-emerald-400" />
+          Manual mode
+        </div>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-5">
-        <Card title="Omzet Hari Ini" value="Rp 1.250.000" hint="+8% vs kemarin" />
-        <Card title="Transaksi" value="23" hint="Rata-rata 2 menit/transaksi" />
-        <Card title="Laba Kotor (estimasi)" value="Rp 320.000" hint="Margin 25,6%" />
-        <Card title="Stok Kritis" value="7 produk" hint="Butuh restock" />
-        <Card title="Kadaluarsa < 30 hari" value="5 batch" hint="Perlu tindakan" />
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard title="Omzet Hari Ini" value={formatRupiah(summary.omzetHariIni)} hint="Dihitung dari transaksi hari ini" />
+        <StatCard title="Transaksi Hari Ini" value={String(summary.transaksiHariIni)} hint="Jumlah transaksi yang masuk hari ini" />
+        <StatCard title="Stok Kritis" value={String(summary.stokKritis)} hint="Produk dengan stok <= stok minimum" />
+        <StatCard title="Kadaluarsa < 30 hari" value={String(summary.expiryDekat)} hint="Produk dengan expiry terdekat" />
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-black/10 bg-white p-5 shadow-sm md:col-span-2">
+      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="shell-card rounded-[28px] p-6">
           <div className="flex items-center justify-between">
-            <div className="text-base font-semibold text-gray-900">Penjualan 30 Hari</div>
-            <Badge>Placeholder</Badge>
+            <div>
+              <div className="text-xl font-semibold text-white">Transaksi Terbaru</div>
+              <div className="mt-1 text-sm text-soft">Riwayat penjualan terbaru</div>
+            </div>
+            <a href="/dashboard/sales" className="text-sm text-emerald-200 hover:text-emerald-100">
+              Lihat semua
+            </a>
           </div>
 
-          <div className="mt-4 h-72 rounded-3xl bg-gradient-to-b from-gray-50 to-white border border-black/10 flex items-center justify-center text-sm text-gray-500">
-            Grafik akan dipasang (Recharts)
-          </div>
-
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-black/10 p-3">
-              <div className="text-xs text-gray-500">Best day</div>
-              <div className="mt-1 font-semibold">Jumat</div>
+          {latestSales.length === 0 ? (
+            <div className="mt-5 shell-soft rounded-[22px] p-5 text-soft">
+              Belum ada transaksi. Tambahkan dulu di menu <span className="text-white font-medium">Penjualan</span>.
             </div>
-            <div className="rounded-2xl border border-black/10 p-3">
-              <div className="text-xs text-gray-500">Metode bayar</div>
-              <div className="mt-1 font-semibold">QRIS</div>
+          ) : (
+            <div className="mt-5 overflow-auto">
+              <table className="table-dark">
+                <thead>
+                  <tr>
+                    <th>Tanggal</th>
+                    <th>Total</th>
+                    <th>Metode</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestSales.map((item) => (
+                    <tr key={item.id}>
+                      <td>{new Date(item.tanggalISO).toLocaleString("id-ID")}</td>
+                      <td className="font-medium text-white">{formatRupiah(Number(item.total || 0))}</td>
+                      <td>{item.metodeBayar || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="rounded-2xl border border-black/10 p-3">
-              <div className="text-xs text-gray-500">Produk terlaris</div>
-              <div className="mt-1 font-semibold">Paracetamol</div>
-            </div>
-          </div>
+          )}
         </div>
 
-        <div className="rounded-3xl border border-black/10 bg-white p-5 shadow-sm">
+        <div className="shell-card rounded-[28px] p-6">
           <div className="flex items-center justify-between">
-            <div className="text-base font-semibold text-gray-900">Stok Kritis</div>
-            <Badge>Butuh restock</Badge>
-          </div>
-          <ul className="mt-4 space-y-3">
-            <Row left="Paracetamol 500mg" right="sisa 8" />
-            <Row left="Amoxicillin 500mg" right="sisa 5" />
-            <Row left="Vitamin C 1000mg" right="sisa 9" />
-            <Row left="Antasida DOEN" right="sisa 6" />
-            <Row left="Cetirizine 10mg" right="sisa 7" />
-          </ul>
-
-          <div className="mt-5 rounded-2xl border border-black/10 bg-gray-50 p-3">
-            <div className="text-xs text-gray-500">Saran</div>
-            <div className="mt-1 text-sm text-gray-800">
-              Buat PO untuk produk dengan stok di bawah minimum.
+            <div>
+              <div className="text-xl font-semibold text-white">Stok Kritis</div>
+              <div className="mt-1 text-sm text-soft">Butuh perhatian/restock</div>
             </div>
+            <a href="/dashboard/products" className="text-sm text-emerald-200 hover:text-emerald-100">
+              Kelola
+            </a>
           </div>
+
+          {lowStock.length === 0 ? (
+            <div className="mt-5 shell-soft rounded-[22px] p-5 text-soft">
+              Belum ada stok kritis. Isi produk dan stok dulu di menu <span className="text-white font-medium">Produk &amp; Stok</span>.
+            </div>
+          ) : (
+            <ul className="mt-5 space-y-3">
+              {lowStock.map((item) => (
+                <li key={item.id} className="shell-soft rounded-[20px] px-4 py-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-white">{item.nama}</div>
+                    <div className="text-xs text-soft mt-1">Minimum {Number(item.stokMinimum ?? 0)}</div>
+                  </div>
+                  <div className="badge-green">Sisa {Number(item.stok ?? 0)}</div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </section>
     </div>
