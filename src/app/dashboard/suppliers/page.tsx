@@ -1,23 +1,16 @@
-export default function Page() {
-  const title =
-    "suppliers" === "purchases" ? "Pembelian" :
-    "suppliers" === "suppliers" ? "Supplier" :
-    "suppliers" === "expiry" ? "Kadaluarsa" :
-    "suppliers" === "reports" ? "Laporan" :
-    "Pengaturan";
-
+export default function SuppliersPage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900">{title}</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Halaman ini sudah aktif. Isi fitur input manual akan ditambahkan berikutnya.
+        <h1 className="text-2xl font-semibold tracking-tight text-white">Supplier</h1>
+        <p className="mt-1 text-sm text-soft">
+          Halaman ini sudah aktif. Fitur input manual supplier akan ditambahkan berikutnya.
         </p>
       </div>
 
-      <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
-        <div className="text-sm text-gray-700">
-          Belum ada data di halaman ini. (Tidak ada demo)
+      <div className="shell-card rounded-[24px] p-6">
+        <div className="text-sm text-soft">
+          Belum ada data di halaman ini.
         </div>
       </div>
     </div>
